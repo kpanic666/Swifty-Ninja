@@ -7,6 +7,10 @@
 
 import SpriteKit
 
+enum ForceBomb {
+    case never, always, random
+}
+
 class GameScene: SKScene {
     var gameScore: SKLabelNode!
     var score = 0 {
@@ -20,6 +24,9 @@ class GameScene: SKScene {
     
     var activeSliceBG: SKShapeNode!
     var activeSliceFG: SKShapeNode!
+    var activeSlicePoints = [CGPoint]()
+    
+    var isSwooshSoundActive = false
     
     override func didMove(to view: SKView) {
         let background = SKSpriteNode(imageNamed: "sliceBackground")
@@ -65,14 +72,81 @@ class GameScene: SKScene {
         
         activeSliceBG.strokeColor = UIColor(red: 1, green: 0.9, blue: 0, alpha: 1)
         activeSliceBG.lineWidth = 9
+        activeSliceBG.glowWidth = 10
+        activeSliceBG.isAntialiased = true
+        activeSliceBG.lineCap = .round
         
         activeSliceFG.strokeColor = UIColor.white
         activeSliceFG.lineWidth = 5
+        activeSliceFG.lineCap = .round
         
         addChild(activeSliceBG)
         addChild(activeSliceFG)
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        
+        activeSlicePoints.removeAll(keepingCapacity: true)
+        
+        let location = touch.location(in: self)
+        activeSlicePoints.append(location)
+        
+        redrawActiveSlice()
+        
+        activeSliceBG.removeAllActions()
+        activeSliceFG.removeAllActions()
+        
+        activeSliceBG.alpha = 1
+        activeSliceFG.alpha = 1
+    }
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        activeSlicePoints.append(location)
+        redrawActiveSlice()
+        
+        if !isSwooshSoundActive {
+            playSwooshSound()
+        }
+    }
+    
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        activeSliceBG.run(SKAction.fadeOut(withDuration: 0.25))
+        activeSliceFG.run(SKAction.fadeOut(withDuration: 0.25))
+    }
+    
+    func playSwooshSound() {
+        isSwooshSoundActive = true
+        
+        let randomNumber = Int.random(in: 1...3)
+        let soundName = "swoosh\(randomNumber).caf"
+        
+        let swooshSound = SKAction.playSoundFileNamed(soundName, waitForCompletion: true)
+        
+        run(swooshSound) { [unowned self] in
+            self.isSwooshSoundActive = false
+        }
+    }
+    
+    func redrawActiveSlice() {
+        if activeSlicePoints.count < 2 {
+            activeSliceFG.path = nil
+            activeSliceBG.path = nil
+            return
+        } else if activeSlicePoints.count > 12 {
+            activeSlicePoints.removeFirst(activeSlicePoints.count - 12)
+        }
+        
+        let path = UIBezierPath()
+        path.move(to: activeSlicePoints[0])
+        
+        for i in 1 ..< activeSlicePoints.count {
+            path.addLine(to: activeSlicePoints[i])
+        }
+        
+        activeSliceBG.path = path.cgPath
+        activeSliceFG.path = path.cgPath
     }
 }
